@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+result/
+score/
+outputs/
+.file_locks/
+bfcl_call_logs/
+test_case_ids_to_generate.json
+
