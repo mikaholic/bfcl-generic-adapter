@@ -43,6 +43,14 @@ export BFCL_GENERIC_MODEL='qwen3-coder:30b'
 
 `BFCL_GENERIC_MODEL` must be the exact model ID accepted by the server. `BFCL_REGISTRY_NAME` is an optional local BFCL label.
 
+To impose a client-side call limit, set a positive integer before running:
+
+```bash
+export BFCL_CALLS_PER_MINUTE=30
+```
+
+The limiter uses a rolling 60-second window and counts retry attempts. It is shared by all BFCL threads in the current process. When the variable is unset or set to `infinite`, calls are unlimited.
+
 ## Test selection
 
 The example scripts use `--run-ids`. Add or remove IDs in `test_case_ids_to_generate.json` to change the selected cases.
@@ -57,4 +65,3 @@ BFCL writes benchmark output under `result/` and `score/`. Request monitoring is
 - `calls_per_minute_*.svg`: rolling 60-second request count over the run
 
 The adapter measures only requests made by its own BFCL process. It does not include calls from other users of the model server.
-

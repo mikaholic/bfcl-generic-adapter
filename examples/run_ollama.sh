@@ -9,6 +9,7 @@ export BFCL_PROJECT_ROOT="$REPO_DIR"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-http://127.0.0.1:11434/v1}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-ollama}"
 export BFCL_REGISTRY_NAME="${BFCL_REGISTRY_NAME:-generic-ollama-FC}"
+export BFCL_CALLS_PER_MINUTE="${BFCL_CALLS_PER_MINUTE:-infinite}"
 
 TEST_CATEGORIES="${BFCL_TEST_CATEGORIES:-simple_python,multiple,parallel,irrelevance,multi_turn_base,multi_turn_miss_func,multi_turn_miss_param}"
 
@@ -29,4 +30,3 @@ fi
     --model "$BFCL_REGISTRY_NAME" \
     --test-category "$TEST_CATEGORIES" \
     --partial-eval
-

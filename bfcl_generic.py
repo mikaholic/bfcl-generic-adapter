@@ -5,7 +5,9 @@ import math
 import os
 import sys
 import threading
+import time
 from bisect import bisect_right
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,6 +29,59 @@ _RUN_ID = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}_{os.getpid()}"
 _CALL_LOG_PATH = _LOG_DIR / f"calls_{_RUN_ID}.jsonl"
 _PLOT_PATH = _LOG_DIR / f"calls_per_minute_{_RUN_ID}.svg"
 _LOG_LOCK = threading.Lock()
+_RATE_LIMIT_LOCK = threading.Lock()
+_RATE_LIMIT_WINDOW_SECONDS = 60.0
+_RATE_LIMIT_CALL_TIMES = deque()
+
+
+def _get_calls_per_minute_limit():
+    raw_limit = os.environ.get("BFCL_CALLS_PER_MINUTE", "").strip().lower()
+    if raw_limit in {"", "inf", "infinite", "unlimited"}:
+        return None
+
+    try:
+        limit = int(raw_limit)
+    except ValueError as exc:
+        raise ValueError(
+            "BFCL_CALLS_PER_MINUTE must be a positive integer or 'infinite'."
+        ) from exc
+
+    if limit <= 0:
+        raise ValueError(
+            "BFCL_CALLS_PER_MINUTE must be a positive integer or 'infinite'."
+        )
+    return limit
+
+
+_CALLS_PER_MINUTE_LIMIT = _get_calls_per_minute_limit()
+
+
+def wait_for_call_slot():
+    """Enforce a process-wide rolling-window request limit."""
+    if _CALLS_PER_MINUTE_LIMIT is None:
+        return
+
+    with _RATE_LIMIT_LOCK:
+        while True:
+            now = time.monotonic()
+            cutoff = now - _RATE_LIMIT_WINDOW_SECONDS
+            while _RATE_LIMIT_CALL_TIMES and _RATE_LIMIT_CALL_TIMES[0] <= cutoff:
+                _RATE_LIMIT_CALL_TIMES.popleft()
+
+            if len(_RATE_LIMIT_CALL_TIMES) < _CALLS_PER_MINUTE_LIMIT:
+                _RATE_LIMIT_CALL_TIMES.append(now)
+                return
+
+            wait_seconds = max(
+                _RATE_LIMIT_CALL_TIMES[0] + _RATE_LIMIT_WINDOW_SECONDS - now,
+                0.001,
+            )
+            print(
+                f"LLM call limit reached ({_CALLS_PER_MINUTE_LIMIT}/minute); "
+                f"waiting {wait_seconds:.1f} seconds...",
+                flush=True,
+            )
+            time.sleep(wait_seconds)
 
 
 def write_call_rate_plot():
@@ -165,6 +220,7 @@ class GenericOpenAICompatibleHandler(OpenAICompletionsHandler):
         ):
             return
 
+        wait_for_call_slot()
         now = datetime.now(timezone.utc)
         event = {
             "timestamp_utc": now.isoformat(timespec="milliseconds").replace(
